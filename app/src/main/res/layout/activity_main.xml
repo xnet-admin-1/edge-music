@@ -3,8 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="24dp"
-    android:gravity="center">
+    android:padding="24dp">
 
     <TextView
         android:layout_width="wrap_content"
@@ -12,34 +11,35 @@
         android:text="Edge Music Engine"
         android:textSize="24sp"
         android:textStyle="bold"
-        android:layout_marginBottom="8dp" />
+        android:layout_marginBottom="4dp" />
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="ACE-Step v1.5 Turbo • On-Device"
         android:textSize="14sp"
-        android:layout_marginBottom="32dp" />
+        android:layout_marginBottom="16dp" />
 
     <TextView
         android:id="@+id/status_text"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Checking models..."
-        android:textSize="16sp"
+        android:text="Load GGUF files for each slot"
+        android:textSize="14sp"
         android:layout_marginBottom="16dp" />
 
-    <ProgressBar
-        android:id="@+id/progress_bar"
+    <LinearLayout
+        android:id="@+id/slots_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        style="@android:style/Widget.ProgressBar.Horizontal"
-        android:layout_marginBottom="24dp" />
+        android:orientation="vertical" />
 
     <Button
         android:id="@+id/start_btn"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Start Server" />
+        android:layout_marginTop="24dp"
+        android:text="Start Server"
+        android:enabled="false" />
 
 </LinearLayout>

@@ -1,68 +1,54 @@
 package com.edgemusic
 
 import android.content.Context
-import kotlinx.coroutines.*
 import java.io.File
-import java.net.URL
 
 /**
- * Manages ACE-Step GGUF model downloads.
- * Models stored in app's external files dir.
+ * Manages ACE-Step GGUF model files.
+ * Models are loaded via file picker — no auto-download.
  */
 object ModelManager {
 
-    private const val HF_BASE = "https://huggingface.co/Serveurperso/ACE-Step-1.5-GGUF/resolve/main"
+    enum class ModelSlot(val label: String) {
+        LM("Language Model"),
+        TEXT_ENC("Text Encoder"),
+        DIT("DiT (Diffusion)"),
+        VAE("VAE Decoder")
+    }
 
-    val REQUIRED_MODELS = listOf(
-        ModelFile("acestep-5Hz-lm-0.6B-BF16.gguf", 1331L),       // LM (1.3GB)
-        ModelFile("Qwen3-Embedding-0.6B-Q8_0.gguf", 784L),       // Text encoder
-        ModelFile("acestep-v15-turbo-Q4_K_M.gguf", 1450L),       // DiT turbo
-        ModelFile("vae-BF16.gguf", 322L),                          // VAE decoder
-    )
-
-    data class ModelFile(val name: String, val sizeMB: Long)
+    private val loaded = mutableMapOf<ModelSlot, File>()
 
     fun getModelsDir(context: Context): File {
         return File(context.getExternalFilesDir(null), "models").also { it.mkdirs() }
     }
 
-    fun getMissingModels(context: Context): List<ModelFile> {
-        val dir = getModelsDir(context)
-        return REQUIRED_MODELS.filter { !File(dir, it.name).exists() }
+    fun setModel(slot: ModelSlot, file: File) {
+        loaded[slot] = file
     }
 
-    fun allModelsReady(context: Context): Boolean = getMissingModels(context).isEmpty()
+    fun getModel(slot: ModelSlot): File? = loaded[slot]
 
-    suspend fun downloadModel(
-        context: Context,
-        model: ModelFile,
-        onProgress: (Float) -> Unit = {}
-    ): Boolean = withContext(Dispatchers.IO) {
-        val outFile = File(getModelsDir(context), model.name)
-        val tmpFile = File(outFile.path + ".tmp")
+    fun allModelsReady(): Boolean = ModelSlot.entries.all { loaded[it]?.exists() == true }
+
+    fun getStatus(): Map<ModelSlot, String> {
+        return ModelSlot.entries.associateWith { slot ->
+            loaded[slot]?.name ?: "Not loaded"
+        }
+    }
+
+    /** Copy a picked URI file into models dir and register it */
+    fun importModel(context: Context, slot: ModelSlot, uri: android.net.Uri): File? {
+        val dir = getModelsDir(context)
+        val fileName = slot.name.lowercase() + ".gguf"
+        val dest = File(dir, fileName)
         try {
-            val url = URL("$HF_BASE/${model.name}")
-            val conn = url.openConnection()
-            conn.connectTimeout = 30000
-            val totalBytes = conn.contentLengthLong
-            var downloaded = 0L
-            conn.getInputStream().use { input ->
-                tmpFile.outputStream().use { output ->
-                    val buf = ByteArray(65536)
-                    var n: Int
-                    while (input.read(buf).also { n = it } > 0) {
-                        output.write(buf, 0, n)
-                        downloaded += n
-                        if (totalBytes > 0) onProgress(downloaded.toFloat() / totalBytes)
-                    }
-                }
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                dest.outputStream().use { output -> input.copyTo(output) }
             }
-            tmpFile.renameTo(outFile)
-            true
+            loaded[slot] = dest
+            return dest
         } catch (e: Exception) {
-            tmpFile.delete()
-            android.util.Log.e("ModelManager", "Download failed: ${model.name}", e)
-            false
+            return null
         }
     }
 }

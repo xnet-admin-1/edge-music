@@ -40,8 +40,8 @@ class MusicService : Service() {
 
     private fun startServer() {
         val modelsDir = ModelManager.getModelsDir(this)
-        if (!modelsDir.exists() || modelsDir.listFiles()?.isEmpty() != false) {
-            updateNotification("Models not downloaded")
+        if (!ModelManager.allModelsReady()) {
+            updateNotification("Models not loaded")
             return
         }
 
