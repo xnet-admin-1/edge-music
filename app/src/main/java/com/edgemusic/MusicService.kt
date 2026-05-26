@@ -50,7 +50,8 @@ class MusicService : Service() {
             binary,
             "--models", modelsDir.absolutePath,
             "--host", "127.0.0.1",
-            "--port", DEFAULT_PORT.toString()
+            "--port", DEFAULT_PORT.toString(),
+            "--no-fa"
         )
         pb.redirectErrorStream(true)
         pb.environment()["LD_LIBRARY_PATH"] = applicationInfo.nativeLibraryDir
