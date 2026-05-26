@@ -10,6 +10,7 @@ class WebViewActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        supportActionBar?.hide()
         val webView = WebView(this)
         setContentView(webView)
 
