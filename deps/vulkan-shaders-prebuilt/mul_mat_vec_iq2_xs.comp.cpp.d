@@ -1,0 +1,1 @@
+/tmp/vk_shaders/mul_mat_vec_iq2_xs.comp.cpp: /tmp/vulkan-shaders/mul_mat_vec_iq2_xs.comp /tmp/vulkan-shaders/types.glsl /tmp/vulkan-shaders/mul_mat_vec_iface.glsl /tmp/vulkan-shaders/mul_mat_vec_base.glsl

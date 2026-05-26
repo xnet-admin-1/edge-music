@@ -1,0 +1,1 @@
+/tmp/vk_shaders/rope_multi.comp.cpp: /tmp/vulkan-shaders/rope_multi.comp /tmp/vulkan-shaders/rope_params.glsl /tmp/vulkan-shaders/types.glsl /tmp/vulkan-shaders/rope_funcs.glsl /tmp/vulkan-shaders/rope_head.glsl

@@ -1,0 +1,1 @@
+/tmp/vk_shaders/mul_mmq.comp.cpp: /tmp/vulkan-shaders/mul_mmq.comp /tmp/vulkan-shaders/mul_mmq_funcs.glsl /tmp/vulkan-shaders/mul_mm_id_funcs.glsl /tmp/vulkan-shaders/mul_mmq_shmem_types.glsl /tmp/vulkan-shaders/types.glsl
