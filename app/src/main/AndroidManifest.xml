@@ -9,6 +9,7 @@
 
     <application
         android:label="Edge Music"
+        android:usesCleartextTraffic="true"
         android:theme="@style/Theme.MaterialComponents.DayNight.DarkActionBar">
 
         <activity
@@ -19,6 +20,10 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".WebViewActivity"
+            android:exported="false" />
 
         <service
             android:name=".MusicService"

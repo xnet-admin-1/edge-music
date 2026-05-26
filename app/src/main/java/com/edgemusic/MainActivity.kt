@@ -46,6 +46,8 @@ class MainActivity : AppCompatActivity() {
                 serverRunning = true
                 startBtn.text = "Stop Server"
                 statusText.text = "Server running on port ${MusicService.DEFAULT_PORT}"
+                // Open WebView
+                startActivity(Intent(this, WebViewActivity::class.java))
             }
         }
 
