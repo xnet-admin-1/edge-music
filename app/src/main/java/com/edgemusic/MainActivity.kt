@@ -16,6 +16,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var slotsLayout: LinearLayout
     private lateinit var startBtn: Button
     private var pendingSlot: ModelManager.ModelSlot? = null
+    private var serverRunning = false
 
     private val filePicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         val slot = pendingSlot ?: return@registerForActivityResult
@@ -35,11 +36,16 @@ class MainActivity : AppCompatActivity() {
         startBtn = findViewById(R.id.start_btn)
 
         startBtn.setOnClickListener {
-            if (ModelManager.allModelsReady()) {
+            if (serverRunning) {
+                stopService(Intent(this, MusicService::class.java))
+                serverRunning = false
+                startBtn.text = "Start Server"
+                statusText.text = "Server stopped"
+            } else if (ModelManager.allModelsReady()) {
                 startService(Intent(this, MusicService::class.java).apply { action = MusicService.ACTION_START })
+                serverRunning = true
+                startBtn.text = "Stop Server"
                 statusText.text = "Server running on port ${MusicService.DEFAULT_PORT}"
-            } else {
-                statusText.text = "Load all models first"
             }
         }
 
@@ -74,7 +80,12 @@ class MainActivity : AppCompatActivity() {
             }
             slotsLayout.addView(btn)
         }
-        startBtn.isEnabled = ModelManager.allModelsReady()
-        statusText.text = if (ModelManager.allModelsReady()) "All models loaded. Ready." else "Load GGUF files for each slot"
+
+        val ready = ModelManager.allModelsReady()
+        startBtn.isEnabled = ready
+        if (!serverRunning) {
+            startBtn.text = if (ready) "Start Server" else "Start Server"
+            statusText.text = if (ready) "All models loaded. Ready." else "Load GGUF files for each slot"
+        }
     }
 }
