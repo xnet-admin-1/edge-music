@@ -12,6 +12,14 @@
 #include <cstring>
 #include <thread>
 
+#ifdef __ANDROID__
+#include <sched.h>
+#include <unistd.h>
+#include <sys/syscall.h>
+#include <sys/resource.h>
+#include <sys/mman.h>
+#endif
+
 struct BackendPair {
     ggml_backend_t backend;
     ggml_backend_t cpu_backend;
@@ -22,12 +30,71 @@ struct BackendPair {
 static BackendPair g_backend_cache = {};
 static int         g_backend_refs  = 0;
 
+// ---------- Android big.LITTLE core affinity ----------
+#ifdef __ANDROID__
+// Detect big cores by reading cpuinfo_max_freq, pin current process to them.
+// Returns the number of big cores found.
+static int backend_pin_big_cores(void) {
+    int max_freq = 0;
+    int freqs[16] = {};
+    int ncpu = (int)sysconf(_SC_NPROCESSORS_CONF);
+    if (ncpu > 16) ncpu = 16;
+
+    for (int i = 0; i < ncpu; i++) {
+        char path[128];
+        snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu%d/cpufreq/cpuinfo_max_freq", i);
+        FILE * f = fopen(path, "r");
+        if (f) { fscanf(f, "%d", &freqs[i]); fclose(f); }
+        if (freqs[i] > max_freq) max_freq = freqs[i];
+    }
+
+    // "Big" = anything above 80% of max freq (catches X4 + A720, excludes A520)
+    int threshold = max_freq * 80 / 100;
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    int big_count = 0;
+    for (int i = 0; i < ncpu; i++) {
+        if (freqs[i] >= threshold) {
+            CPU_SET(i, &mask);
+            big_count++;
+        }
+    }
+    if (big_count > 0) {
+        sched_setaffinity(0, sizeof(mask), &mask);
+        fprintf(stderr, "[Android] Pinned to %d big cores (threshold %d kHz)\n", big_count, threshold);
+    }
+    return big_count;
+}
+#endif
+
 // Physical core count heuristic (logical / 2 for HT/SMT).
 // Used for GGML CPU thread count: GEMM shares SIMD units across hyperthreads,
 // so one thread per physical core is optimal.
 static int backend_cpu_n_threads(void) {
+#ifdef __ANDROID__
+    // On Android big.LITTLE, use big core count (pinned via backend_pin_big_cores)
+    static int cached = 0;
+    if (cached > 0) return cached;
+    int max_freq = 0;
+    int freqs[16] = {};
+    int ncpu = (int)sysconf(_SC_NPROCESSORS_CONF);
+    if (ncpu > 16) ncpu = 16;
+    for (int i = 0; i < ncpu; i++) {
+        char path[128];
+        snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu%d/cpufreq/cpuinfo_max_freq", i);
+        FILE * f = fopen(path, "r");
+        if (f) { fscanf(f, "%d", &freqs[i]); fclose(f); }
+        if (freqs[i] > max_freq) max_freq = freqs[i];
+    }
+    int threshold = max_freq * 80 / 100;
+    int big = 0;
+    for (int i = 0; i < ncpu; i++) if (freqs[i] >= threshold) big++;
+    cached = big > 0 ? big : ncpu - 1;
+    return cached;
+#else
     int n = (int) std::thread::hardware_concurrency() - 1;
     return n > 0 ? n : 1;
+#endif
 }
 
 // Standalone CPU backend via Registry API (DL-safe, no ggml-cpu.h needed).
@@ -69,6 +136,13 @@ static BackendPair backend_init(const char * label) {
         fprintf(stderr, "[Load] %s backend: %s (shared)\n", label, ggml_backend_name(g_backend_cache.backend));
         return g_backend_cache;
     }
+
+#ifdef __ANDROID__
+    // First init: pin to big cores and request sustained performance
+    backend_pin_big_cores();
+    // Set high scheduling priority for compute threads
+    setpriority(PRIO_PROCESS, 0, -10);
+#endif
 
     ggml_backend_load_all();
     BackendPair bp = {};

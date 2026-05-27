@@ -113,6 +113,7 @@ static bool gf_load(GGUFModel * gf, const char * path) {
         fprintf(stderr, "[GGUF] Mmap failed %s\n", path);
         return false;
     }
+    madvise(gf->mapping, gf->file_size, MADV_SEQUENTIAL);
 #endif
 
     // Parse GGUF header, create tensor metadata context
