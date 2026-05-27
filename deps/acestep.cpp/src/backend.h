@@ -6,6 +6,8 @@
 // qwen3.h, qwen3-lm.h, cond.h, dit.h, vae.h.
 
 #include "ggml-backend.h"
+#include "ggml.h"
+#include "ggml-cpu.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -117,10 +119,44 @@ static ggml_backend_t cpu_backend_new(int n_threads) {
     ggml_backend_dev_t dev = ggml_backend_get_device(cpu);
     ggml_backend_reg_t reg = dev ? ggml_backend_dev_backend_reg(dev) : NULL;
     if (reg) {
+        // Set thread count
         auto set_fn =
             (ggml_backend_set_n_threads_t) ggml_backend_reg_get_proc_address(reg, "ggml_backend_set_n_threads");
         if (set_fn) {
             set_fn(cpu, n_threads);
+        }
+
+        // Create threadpool with big-core affinity and high priority
+        struct ggml_threadpool_params tp = ggml_threadpool_params_default(n_threads);
+        tp.prio = GGML_SCHED_PRIO_HIGH;
+#ifdef __ANDROID__
+        tp.strict_cpu = true;
+        tp.poll       = 50;  // moderate polling (reduces latency vs pure sleep)
+        // Set cpumask to big cores only
+        int max_freq = 0;
+        int freqs[GGML_MAX_N_THREADS] = {};
+        int ncpu = (int)sysconf(_SC_NPROCESSORS_CONF);
+        if (ncpu > GGML_MAX_N_THREADS) ncpu = GGML_MAX_N_THREADS;
+        for (int i = 0; i < ncpu; i++) {
+            char path[128];
+            snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu%d/cpufreq/cpuinfo_max_freq", i);
+            FILE * f = fopen(path, "r");
+            if (f) { fscanf(f, "%d", &freqs[i]); fclose(f); }
+            if (freqs[i] > max_freq) max_freq = freqs[i];
+        }
+        int threshold = max_freq * 80 / 100;
+        for (int i = 0; i < ncpu; i++) {
+            tp.cpumask[i] = (freqs[i] >= threshold);
+        }
+#endif
+        typedef void (*set_tp_fn_t)(ggml_backend_t, ggml_threadpool_t);
+        auto set_tp_fn = (set_tp_fn_t) ggml_backend_reg_get_proc_address(reg, "ggml_backend_cpu_set_threadpool");
+        if (set_tp_fn) {
+            struct ggml_threadpool * tpool = ggml_threadpool_new(&tp);
+            if (tpool) {
+                set_tp_fn(cpu, tpool);
+                fprintf(stderr, "[CPU] Threadpool: %d threads, prio=HIGH, poll=%d\n", n_threads, tp.poll);
+            }
         }
     }
     return cpu;
